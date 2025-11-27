@@ -1,0 +1,45 @@
+﻿name: Build Windows GUI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        profile: minimal
+        override: true
+    
+    - name: Build CLI
+      run: cargo build --release --bin pdfrip
+    
+    - name: Build GUI
+      run: cargo build --release --bin pdfrip-gui
+    
+    - name: Package
+      run: |
+        New-Item -ItemType Directory -Force -Path dist
+        Copy-Item target/release/pdfrip.exe dist/
+        Copy-Item target/release/pdfrip-gui.exe dist/
+        Copy-Item README.md dist/ -ErrorAction SilentlyContinue
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: pdfrip-windows-v${{ github.run_number }}
+        path: dist/
+        retention-days: 90

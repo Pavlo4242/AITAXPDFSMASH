@@ -1,0 +1,9 @@
+﻿[package]
+name = "cracker"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+log.workspace = true
+pdf.workspace = true
+anyhow.workspace = true
