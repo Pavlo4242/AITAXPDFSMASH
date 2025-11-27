@@ -3,13 +3,12 @@ name = "pdfrip"
 version = "2.0.1"
 edition = "2021"
 
-
-[package]
-name = "pdfrip"
-version = "2.0.1"
-edition = "2021"
+[dependencies]
+producer.workspace = true
+crossbeam.workspace = true
 
 [target.'cfg(windows)'.dependencies]
+
 native-windows-gui = "1.0.13"
 native-windows-derive = "1.0.5"
 
