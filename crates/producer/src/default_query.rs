@@ -1,4 +1,4 @@
-﻿use super::Producer;
+use super::Producer;
 
 pub struct DefaultQuery {
     min_length: u32,
@@ -10,21 +10,13 @@ pub struct DefaultQuery {
 
 impl DefaultQuery {
     pub fn new(max_length: u32, min_length: u32) -> Self {
-        let mut char_set: Vec<u8> = (b'0'..=b'9')
-            .chain(b'A'..=b'Z')
-            .chain(b'a'..=b'z')
-            .chain(b'!'..=b'/')
-            .chain(b':'..=b'@')
-            .chain(b'['..=b'')
-            .chain(b'{'..=b'~')
-            .collect();
-
-        char_set.sort();
+        // Simplified character set - alphanumeric + common special chars
+        let char_set: Vec<u8> = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@#$%^&*()".to_vec();
         
         Self {
             max_length,
             min_length,
-            current: vec![char_set[0]; min_length.try_into().unwrap()],
+            current: vec![char_set[0]; min_length as usize],
             char_set,
             rolled: false,
         }
@@ -49,7 +41,7 @@ impl Producer for DefaultQuery {
         }
         if !stopped {
             self.current.insert(0, self.char_set[0]);
-            if self.current.len() > self.max_length.try_into().unwrap() {
+            if self.current.len() > self.max_length as usize {
                 if self.rolled {
                     return Err("Out of elements".to_string());
                 } else {
@@ -65,7 +57,7 @@ impl Producer for DefaultQuery {
     fn size(&self) -> usize {
         let mut ret = 0usize;
         for len in self.min_length..=self.max_length {
-            ret += self.char_set.len().pow(len);
+            ret += self.char_set.len().pow(len as u32);
         }
         ret
     }
