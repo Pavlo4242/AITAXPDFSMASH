@@ -16,7 +16,16 @@ authors = ["Ling <Ling@aitaxadvisers.com>", "แมตตี้", "AI-TAX ADVISE
 producer = { path = "crates/producer" }
 cracker = { path = "crates/cracker" }
 engine = { path = "crates/engine" }
+gui = { path = "crates/gui" }
 cli-interface = { path = "crates/cli-interface" }
+
+
+[dependencies]
+native_windows_gui = "1.0.9"
+native_windows_derive = "1.0.2"
+indicatif = "0.17"
+rayon = "1.7"
+pdf = "0.8.1"
 
 bytecount = "0.6.7"
 log = "0.4.19"
