@@ -308,15 +308,20 @@ impl PDFRipGui {
                 output_buffer.lock().unwrap().push("⏹ Recovery stopped by user.".to_string());
             }
             
-            running.store(false, Ordering::SeqCst);
+running.store(false, Ordering::SeqCst);
             notice.notice();
         });
     }
     
-    fn build_patterns(&self, first: &str, last: &str, _ssn: &str) -> Vec<String> {
+    fn build_patterns(&self, first: &str, last: &str, ssn_digits: &str) -> Vec<String> {
         let mut patterns = Vec::new();
         
-        // Numbers only
+        // Pattern 1: SSN digits alone as a fixed password, treated as a range {SSN-SSN}
+        // This is done to use the existing 'custom-query' engine method.
+        let ssn_fixed_pattern = format!("{{{}-{}}}", ssn_digits, ssn_digits);
+        patterns.push(ssn_fixed_pattern.clone());
+
+        // Pattern 2: Numbers only (original brute-force ranges)
         patterns.push("{0-9999}".to_string());
         patterns.push("{0-99999}".to_string());
         patterns.push("{0-999999}".to_string());
@@ -329,14 +334,23 @@ impl PDFRipGui {
             format!("{}{}", first.to_lowercase(), last.to_uppercase()),
         ];
         
-        for combo in combos {
+        for combo in &combos {
             patterns.push(format!("{}{{{}-{}}}", combo, 0, 9999));
             patterns.push(format!("{}{{{}-{}}}", combo, 0, 99999));
             patterns.push(format!("{}{{{}-{}}}", combo, 0, 999999));
         }
+
+        // Pattern 3: Initials + SSN (fixed SSN suffix, as a fixed password pattern)
+        for combo in combos {
+             patterns.push(format!("{}{}", combo, ssn_fixed_pattern));
+        }
         
         patterns
     }
+
+    fn process_output(&self) {
+        let mut buffer = self.output_buffer.lock().unwrap();
+        for msg in buffer.drain(..) {
     
     fn process_output(&self) {
         let mut buffer = self.output_buffer.lock().unwrap();
