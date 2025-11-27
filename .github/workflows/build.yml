@@ -15,7 +15,7 @@ jobs:
     runs-on: windows-latest
     
     steps:
-    - uses: actions/checkout@4
+    - uses: actions/checkout@3
     
     - name: Install Rust
       uses: actions-rs/toolchain@v1
@@ -38,7 +38,7 @@ jobs:
         Copy-Item README.md dist/ -ErrorAction SilentlyContinue
     
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: pdfrip-windows-v${{ github.run_number }}
         path: dist/
