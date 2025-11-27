@@ -10,7 +10,7 @@ use std::thread;
 // Use the Producer trait and DefaultQuery struct from the producer crate
 use producer::{Producer, default_query::DefaultQuery};
 
-#[derive(Default)]
+
 
 #[derive(Default)]
 struct PdfCrackerApp {
