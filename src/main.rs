@@ -348,9 +348,7 @@ running.store(false, Ordering::SeqCst);
         patterns
     }
 
-    fn process_output(&self) {
-        let mut buffer = self.output_buffer.lock().unwrap();
-        for msg in buffer.drain(..) {
+   
     
     fn process_output(&self) {
         let mut buffer = self.output_buffer.lock().unwrap();
