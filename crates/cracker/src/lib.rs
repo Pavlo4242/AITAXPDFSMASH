@@ -1,9 +1,8 @@
-﻿use std::{fs, io, cell::RefCell, sync::Arc};
-use std::collections::hash_map::HashMap;
+﻿uuse std::collections::hash_map::HashMap;
 use anyhow::anyhow;
 use pdf::PdfError;
 use pdf::any::AnySync;
-use pdf::file::{Cache, NoLog, Storage};
+use pdf::file::{Cache, Storage}; // Removed NoLog
 use pdf::object::{ParseOptions, PlainRef};
 
 #[derive(Clone)]
@@ -19,7 +18,7 @@ impl PDFCracker {
 type ObjectCache = SimpleCache<Result<AnySync, Arc<PdfError>>>;
 type StreamCache = SimpleCache<Result<Arc<[u8]>, Arc<PdfError>>>;
 
-pub struct PDFCrackerState(Storage<Vec<u8>, ObjectCache, StreamCache, NoLog>);
+pub struct PDFCrackerState(Storage<Vec<u8>, ObjectCache, StreamCache>); // Removed NoLog generic argument
 
 impl PDFCrackerState {
     pub fn from_cracker(pdf_file: &PDFCracker) -> anyhow::Result<Self> {
@@ -27,9 +26,8 @@ impl PDFCrackerState {
             pdf_file.0.clone(),
             ParseOptions::strict(),
             SimpleCache::new(),
-            SimpleCache::new(),
-            NoLog
-        );
+            SimpleCache::new()
+        ); // Removed NoLog argument
 
         match res {
             Ok(storage) => Ok(Self(storage)),
