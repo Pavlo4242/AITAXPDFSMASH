@@ -1,333 +1,387 @@
 use eframe::egui;
 use rfd::FileDialog;
+#![windows_subsystem = "windows"]
+
+use native_windows_gui as nwg;
+use native_windows_derive as nwd;
+use std::process::{Command, Stdio};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::thread;
-
-use rfd::FileDialog;
-use std::sync::{Arc, Mutex};
-use std::thread;
-
-// Use the Producer trait and DefaultQuery struct from the producer crate
-use producer::{Producer, default_query::DefaultQuery};
-
-
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[derive(Default)]
-struct PdfCrackerApp {
-    input_file: String,
-    min_length: String,
-    max_length: String,
+pub struct PDFRipGui {
+    window: nwg::Window,
+    grid: nwg::GridLayout,
     
-    // Cracking state
-    is_running: bool,
-    progress: f32,
-    status: String,
-    result: String,
-    passwords_tried: usize,
+    // UI Elements
+    title_label: nwg::Label,
+    subtitle_label: nwg::Label,
+    file_label: nwg::Label,
+    file_input: nwg::TextInput,
+    browse_button: nwg::Button,
+    first_initial_label: nwg::Label,
+    first_initial_input: nwg::TextInput,
+    last_initial_label: nwg::Label,
+    last_initial_input: nwg::TextInput,
+    ssn_label: nwg::Label,
+    ssn_input: nwg::TextInput,
+    threads_label: nwg::Label,
+    threads_input: nwg::TextInput,
+    output_box: nwg::TextBox,
+    start_button: nwg::Button,
+    stop_button: nwg::Button,
+    clear_button: nwg::Button,
     
-    // Thread handle
-    thread_handle: Option<thread::JoinHandle<()>>,
-    shared_state: Arc<Mutex<SharedState>>,
+    // Resources
+    file_dialog: nwg::FileDialog,
+    title_font: nwg::Font,
+    small_font: nwg::Font,
+    output_notice: nwg::Notice,
+    
+    // State
+    running: Arc<AtomicBool>,
+    output_buffer: Arc<Mutex<Vec<String>>>,
 }
 
-struct SharedState {
-    progress: f32,
-    status: String,
-    result: String,
-    passwords_tried: usize,
-    should_stop: bool,
-}
-
-impl Default for SharedState {
-    fn default() -> Self {
-        Self {
-            progress: 0.0,
-            status: "Ready".to_string(),
-            result: String::new(),
-            passwords_tried: 0,
-            should_stop: false,
-        }
-    }
-}
-
-impl PdfCrackerApp {
-    fn start_cracking(&mut self) {
-        if self.is_running {
-            return;
-        }
-
-        if !self.validate_inputs() {
-            return;
-        }
-
-        self.is_running = true;
-        self.progress = 0.0;
-        self.status = "Starting...".to_string();
-        self.result.clear();
-        self.passwords_tried = 0;
-
-        let input_file = self.input_file.clone();
-        let min_length: u32 = self.min_length.parse().unwrap_or(1);
-        let max_length: u32 = self.max_length.parse().unwrap_or(8);
-        let shared_state = Arc::clone(&self.shared_state);
-
-        self.thread_handle = Some(thread::spawn(move || {
-            if let Err(e) = PdfCrackerApp::run_cracker(input_file, min_length, max_length, shared_state) {
-                let mut state = shared_state.lock().unwrap();
-                state.result = format!("Error: {}", e);
-                state.status = "Failed".to_string();
+impl PDFRipGui {
+    fn build_ui(mut data: Self) -> Result<Self, nwg::NwgError> {
+        // Initialize fonts
+        nwg::Font::builder()
+            .family("Segoe UI")
+            .size(18)
+            .weight(700)
+            .build(&mut data.title_font)?;
+            
+        nwg::Font::builder()
+            .family("Segoe UI")
+            .size(9)
+            .build(&mut data.small_font)?;
+        
+        // Build window
+        nwg::Window::builder()
+            .size((600, 500))
+            .position((300, 300))
+            .title("PDF Password Recovery Tool")
+            .flags(nwg::WindowFlags::WINDOW | nwg::WindowFlags::VISIBLE)
+            .build(&mut data.window)?;
+        
+        // Build file dialog
+        nwg::FileDialog::builder()
+            .action(nwg::FileDialogAction::Open)
+            .title("Select PDF File")
+            .filters("PDF Files(*.pdf)|All Files(*.*)")
+            .build(&mut data.file_dialog)?;
+        
+        // Build notice for thread communication
+        nwg::Notice::builder()
+            .parent(&data.window)
+            .build(&mut data.output_notice)?;
+        
+        // Build layout
+        nwg::GridLayout::builder()
+            .parent(&data.window)
+            .spacing(1)
+            .child_item(nwg::GridLayoutItem::new(&data.title_label, 0, 0, 3, 1))
+            .build(&mut data.grid)?;
+        
+        // Title
+        nwg::Label::builder()
+            .text("PDF Password Recovery Tool")
+            .font(Some(&data.title_font))
+            .parent(&data.window)
+            .build(&mut data.title_label)?;
+        
+        // Subtitle
+        nwg::Label::builder()
+            .text("Powered by PDFRip v2.0.1\nCustomized for AITAX ADVISERS")
+            .font(Some(&data.small_font))
+            .parent(&data.window)
+            .build(&mut data.subtitle_label)?;
+        
+        // File selection row
+        nwg::Label::builder()
+            .text("PDF File:")
+            .parent(&data.window)
+            .build(&mut data.file_label)?;
+        
+        nwg::TextInput::builder()
+            .readonly(true)
+            .parent(&data.window)
+            .build(&mut data.file_input)?;
+        
+        nwg::Button::builder()
+            .text("Browse...")
+            .parent(&data.window)
+            .build(&mut data.browse_button)?;
+        
+        // First initial
+        nwg::Label::builder()
+            .text("First Initial:")
+            .parent(&data.window)
+            .build(&mut data.first_initial_label)?;
+        
+        nwg::TextInput::builder()
+            .placeholder_text(Some("e.g., T"))
+            .parent(&data.window)
+            .build(&mut data.first_initial_input)?;
+        
+        // Last initial
+        nwg::Label::builder()
+            .text("Last Initial:")
+            .parent(&data.window)
+            .build(&mut data.last_initial_label)?;
+        
+        nwg::TextInput::builder()
+            .placeholder_text(Some("e.g., C"))
+            .parent(&data.window)
+            .build(&mut data.last_initial_input)?;
+        
+        // SSN
+        nwg::Label::builder()
+            .text("Last 4-6 of SSN:")
+            .parent(&data.window)
+            .build(&mut data.ssn_label)?;
+        
+        nwg::TextInput::builder()
+            .placeholder_text(Some("e.g., 1234"))
+            .parent(&data.window)
+            .build(&mut data.ssn_input)?;
+        
+        // Threads
+        nwg::Label::builder()
+            .text("CPU Threads:")
+            .parent(&data.window)
+            .build(&mut data.threads_label)?;
+        
+        nwg::TextInput::builder()
+            .text("8")
+            .parent(&data.window)
+            .build(&mut data.threads_input)?;
+        
+        // Output box
+        nwg::TextBox::builder()
+            .text("")
+            .readonly(true)
+            .flags(nwg::TextBoxFlags::VISIBLE | nwg::TextBoxFlags::VSCROLL | nwg::TextBoxFlags::AUTOVSCROLL)
+            .parent(&data.window)
+            .build(&mut data.output_box)?;
+        
+        // Buttons
+        nwg::Button::builder()
+            .text("Start Recovery")
+            .parent(&data.window)
+            .build(&mut data.start_button)?;
+        
+        nwg::Button::builder()
+            .text("Stop")
+            .enabled(false)
+            .parent(&data.window)
+            .build(&mut data.stop_button)?;
+        
+        nwg::Button::builder()
+            .text("Clear")
+            .parent(&data.window)
+            .build(&mut data.clear_button)?;
+        
+        // Bind events
+        let window_handles = data.window.handle;
+        let browse_handler = nwg::full_bind_event_handler(&data.window.handle, move |evt, _evt_data, handle| {
+            use nwg::Event;
+            
+            if handle == data.browse_button.handle {
+                if let Event::OnButtonClick = evt {
+                    Self::select_file(&data);
+                }
             }
-        }));
+        });
+        
+        Ok(data)
     }
-
-    fn run_cracker(
-        pdf_path: String,
-        min_length: u32,
-        max_length: u32,
-        shared_state: Arc<Mutex<SharedState>>
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let pdf_bytes = std::fs::read(&pdf_path)?;
-        
-        {
-            let mut state = shared_state.lock().unwrap();
-            state.status = "Initializing password generator...".to_string();
+    
+    fn select_file(&self) {
+        if self.file_dialog.run(Some(&self.window)) {
+            if let Ok(path) = self.file_dialog.get_selected_item() {
+                self.file_input.set_text(&path);
+            }
         }
-
-        // Use your DefaultQuery producer
-        let mut producer = DefaultQuery::new(max_length, min_length);
-        let total_passwords = producer.size();
-        
-        {
-            let mut state = shared_state.lock().unwrap();
-            state.status = format!("Total passwords to try: {}", total_passwords);
+    }
+    
+    fn append_output(&self, text: &str) {
+        let current = self.output_box.text();
+        self.output_box.set_text(&format!("{}{}\r\n", current, text));
+        let len = self.output_box.text().len();
+        self.output_box.set_selection(len..len);
+    }
+    
+    fn start_recovery(&self) {
+        let pdf_path = self.file_input.text();
+        if pdf_path.is_empty() {
+            nwg::modal_error_message(&self.window, "Error", "Please select a PDF file");
+            return;
         }
-
-        const BUFFER_SIZE: usize = 1000;
-        let (password_sender, password_receiver) = crossbeam::channel::bounded(BUFFER_SIZE);
-        let (result_sender, result_receiver) = crossbeam::channel::bounded(1);
-
-        // Producer thread
-        let producer_handle = thread::spawn({
-            let shared_state = Arc::clone(&shared_state);
-            move || {
-                let mut count = 0;
-                while let Ok(Some(password_bytes)) = producer.next() {
-                    if shared_state.lock().unwrap().should_stop {
-                        break;
-                    }
-                    
-                    match String::from_utf8(password_bytes.clone()) {
-                        Ok(password_str) => {
-                            if password_sender.send(password_str).is_err() {
-                                break; // Receiver dropped
-                            }
-                            count += 1;
-                            
-                            // Update progress occasionally
-                            if count % 1000 == 0 {
-                                let mut state = shared_state.lock().unwrap();
-                                state.passwords_tried = count;
-                                state.progress = count as f32 / total_passwords as f32;
-                                state.status = format!("Tried {}/{} passwords", count, total_passwords);
-                            }
+        
+        let first_initial = self.first_initial_input.text().trim().to_string();
+        let last_initial = self.last_initial_input.text().trim().to_string();
+        let ssn_text = self.ssn_input.text().trim().to_string();
+        
+        if first_initial.is_empty() || last_initial.is_empty() {
+            nwg::modal_error_message(&self.window, "Error", "Please enter both initials");
+            return;
+        }
+        
+        if ssn_text.is_empty() {
+            nwg::modal_error_message(&self.window, "Error", "Please enter last 4-6 digits of SSN");
+            return;
+        }
+        
+        // Take only last 4 digits
+        let ssn_digits: String = ssn_text.chars()
+            .filter(|c| c.is_numeric())
+            .rev()
+            .take(4)
+            .collect::<String>()
+            .chars()
+            .rev()
+            .collect();
+        
+        let threads = self.threads_input.text().parse::<usize>().unwrap_or(8);
+        
+        self.start_button.set_enabled(false);
+        self.stop_button.set_enabled(true);
+        self.running.store(true, Ordering::SeqCst);
+        
+        self.append_output("===========================================");
+        self.append_output(&format!("Starting password recovery for: {}", pdf_path));
+        self.append_output(&format!("Client Initials: {}{}", first_initial, last_initial));
+        self.append_output(&format!("SSN Digits: {}", ssn_digits));
+        self.append_output(&format!("Threads: {}", threads));
+        self.append_output("===========================================");
+        
+        let exe_path = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.join("pdfrip.exe")))
+            .unwrap_or_else(|| PathBuf::from("pdfrip.exe"));
+        
+        let patterns = self.build_patterns(&first_initial, &last_initial, &ssn_digits);
+        let output_buffer = self.output_buffer.clone();
+        let running = self.running.clone();
+        let notice = self.output_notice.sender();
+        
+        std::thread::spawn(move || {
+            for (i, pattern) in patterns.iter().enumerate() {
+                if !running.load(Ordering::SeqCst) {
+                    break;
+                }
+                
+                let msg = format!("Attempt {}/{}: Testing pattern '{}'", i + 1, patterns.len(), pattern);
+                output_buffer.lock().unwrap().push(msg);
+                notice.notice();
+                
+                let result = Command::new(&exe_path)
+                    .args(&["-n", &threads.to_string(), "-f", &pdf_path, "custom-query", pattern])
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .output();
+                
+                match result {
+                    Ok(output) => {
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        
+                        if stdout.contains("Success!") || stdout.contains("Found password") {
+                            output_buffer.lock().unwrap().push(format!("✓ SUCCESS! Password found with pattern: {}", pattern));
+                            output_buffer.lock().unwrap().push(stdout.to_string());
+                            running.store(false, Ordering::SeqCst);
+                            notice.notice();
+                            return;
                         }
-                        Err(_) => continue, // Skip invalid UTF-8
+                    }
+                    Err(e) => {
+                        output_buffer.lock().unwrap().push(format!("  Error executing pdfrip: {}", e));
+                        notice.notice();
                     }
                 }
-                // Signal end of passwords
-                drop(password_sender);
             }
+            
+            if running.load(Ordering::SeqCst) {
+                output_buffer.lock().unwrap().push("❌ All patterns exhausted. Password not found.".to_string());
+            } else {
+                output_buffer.lock().unwrap().push("⏹ Recovery stopped by user.".to_string());
+            }
+            
+running.store(false, Ordering::SeqCst);
+            notice.notice();
         });
-
-        // Consumer threads (multiple workers)
-        let num_workers = num_cpus::get().min(8);
-        let mut worker_handles = vec![];
-
-        for _ in 0..num_workers {
-            let receiver = password_receiver.clone();
-            let result_sender = result_sender.clone();
-            let pdf_bytes = pdf_bytes.clone();
-            let shared_state = Arc::clone(&shared_state);
-            
-            let handle = thread::spawn(move || {
-                while let Ok(password) = receiver.recv() {
-                    if shared_state.lock().unwrap().should_stop {
-                        break;
-                    }
-                    
-                    if try_password(&pdf_bytes, &password) {
-                        let _ = result_sender.send(Some(password));
-                        return;
-                    }
-                }
-            });
-            worker_handles.push(handle);
-        }
-
-        drop(password_receiver);
-        drop(result_sender);
-
-        // Wait for result
-        let found_password = result_receiver.recv().unwrap_or(None);
-
-        // Cleanup
-        producer_handle.join().unwrap();
-        for handle in worker_handles {
-            handle.join().unwrap();
-        }
-
-        // Final state update
-        let mut state = shared_state.lock().unwrap();
-        if let Some(password) = found_password {
-            state.result = format!("Password found: {}", password);
-            state.status = "Success!".to_string();
-            state.progress = 1.0;
-        } else {
-            if !state.should_stop {
-                state.result = "Password not found".to_string();
-                state.status = "Completed".to_string();
-            }
-        }
-
-        Ok(())
     }
-
-    fn stop_cracking(&mut self) {
-        if self.is_running {
-            let mut state = self.shared_state.lock().unwrap();
-            state.should_stop = true;
-            self.is_running = false;
-            self.status = "Stopping...".to_string();
-        }
-    }
-
-    fn validate_inputs(&self) -> bool {
-        if self.input_file.trim().is_empty() {
-            return false;
-        }
-        if self.min_length.trim().is_empty() || !self.min_length.chars().all(|c| c.is_numeric()) {
-            return false;
-        }
-        if self.max_length.trim().is_empty() || !self.max_length.chars().all(|c| c.is_numeric()) {
-            return false;
-        }
-        let min: u32 = self.min_length.parse().unwrap_or(0);
-        let max: u32 = self.max_length.parse().unwrap_or(0);
-        min > 0 && max >= min
-    }
-
-    fn update_from_thread(&mut self) {
-        let state = self.shared_state.lock().unwrap();
-        self.progress = state.progress;
-        self.status = state.status.clone();
-        self.result = state.result.clone();
-        self.passwords_tried = state.passwords_tried;
-        
-        if let Some(handle) = &self.thread_handle {
-            if handle.is_finished() {
-                drop(state);
-                let mut state = self.shared_state.lock().unwrap();
-                state.should_stop = false;
-                self.is_running = false;
-            }
-        }
-    }
-}
-
-fn try_password(pdf_contents: &[u8], password: &str) -> bool {
-    pdf::file::FileOptions::cached()
-        .password(password.as_bytes())
-        .load(pdf_contents)
-        .is_ok()
-}
-
-impl eframe::App for PdfCrackerApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        self.update_from_thread();
-
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("PDF Password Cracker");
-            
-            // File selection
-            ui.horizontal(|ui| {
-                ui.label("PDF File:");
-                ui.text_edit_singleline(&mut self.input_file);
-                
-                if ui.button("📁").clicked() && !self.is_running {
-                    if let Some(file) = FileDialog::new().add_filter("PDF", &["pdf"]).pick_file() {
-                        self.input_file = file.display().to_string();
-                    }
-                }
-            });
-            
-            ui.add_space(10.0);
-            
-            // Password length range
-            ui.horizontal(|ui| {
-                ui.label("Min Length:");
-                ui.text_edit_singleline(&mut self.min_length)
-                    .on_hover_text("Minimum password length");
-                
-                ui.label("Max Length:");
-                ui.text_edit_singleline(&mut self.max_length)
-                    .on_hover_text("Maximum password length");
-            });
-            
-            ui.add_space(20.0);
-            
-            // Control buttons
-            ui.horizontal(|ui| {
-                if ui.button("Start Cracking").clicked() && !self.is_running {
-                    self.start_cracking();
-                }
-                
-                if self.is_running && ui.button("Stop").clicked() {
-                    self.stop_cracking();
-                }
-            });
-            
-            ui.add_space(10.0);
-            
-            // Progress and status
-            if self.is_running {
-                ui.add(egui::ProgressBar::new(self.progress).show_percentage());
-                ui.label(&self.status);
-                if self.passwords_tried > 0 {
-                    ui.label(format!("Passwords tried: {}", self.passwords_tried));
-                }
-            }
-            
-            // Results
-            if !self.result.is_empty() {
-                ui.separator();
-                ui.label("Result:");
-                ui.text_edit_multiline(&mut self.result);
-            }
-        });
-
-        if self.is_running {
-            ctx.request_repaint();
-        }
-    }
-}
-
-fn main() -> eframe::Result<()> {
-    let native_options = eframe::NativeOptions {
-        initial_window_size: Some(egui::vec2(500.0, 400.0)),
-        resizable: false,
-        ..Default::default()
-    };
     
-    eframe::run_native(
-        "PDF Cracker",
-        native_options,
-        Box::new(|_cc| {
-            Box::new(PdfCrackerApp {
-                min_length: "1".to_string(),
-                max_length: "4".to_string(), // Start small for testing
-                shared_state: Arc::new(Mutex::new(SharedState::default())),
-                ..Default::default()
-            })
-        }),
-    )
+    fn build_patterns(&self, first: &str, last: &str, ssn_digits: &str) -> Vec<String> {
+        let mut patterns = Vec::new();
+        
+        // Pattern 1: SSN digits alone as a fixed password, treated as a range {SSN-SSN}
+        // This is done to use the existing 'custom-query' engine method.
+        let ssn_fixed_pattern = format!("{{{}-{}}}", ssn_digits, ssn_digits);
+        patterns.push(ssn_fixed_pattern.clone());
+
+        // Pattern 2: Numbers only (original brute-force ranges)
+        patterns.push("{0-9999}".to_string());
+        patterns.push("{0-99999}".to_string());
+        patterns.push("{0-999999}".to_string());
+        
+        // All case combinations
+        let combos = vec![
+            format!("{}{}", first.to_lowercase(), last.to_lowercase()),
+            format!("{}{}", first.to_uppercase(), last.to_uppercase()),
+            format!("{}{}", first.to_uppercase(), last.to_lowercase()),
+            format!("{}{}", first.to_lowercase(), last.to_uppercase()),
+        ];
+        
+        for combo in &combos {
+            patterns.push(format!("{}{{{}-{}}}", combo, 0, 9999));
+            patterns.push(format!("{}{{{}-{}}}", combo, 0, 99999));
+            patterns.push(format!("{}{{{}-{}}}", combo, 0, 999999));
+        }
+
+        // Pattern 3: Initials + SSN (fixed SSN suffix, as a fixed password pattern)
+        for combo in combos {
+             patterns.push(format!("{}{}", combo, ssn_fixed_pattern));
+        }
+        
+        patterns
+    }
+
+   
+    
+    fn process_output(&self) {
+        let mut buffer = self.output_buffer.lock().unwrap();
+        for msg in buffer.drain(..) {
+            self.append_output(&msg);
+        }
+        
+        if !self.running.load(Ordering::SeqCst) {
+            self.start_button.set_enabled(true);
+            self.stop_button.set_enabled(false);
+        }
+    }
+    
+    fn stop_recovery(&self) {
+        self.running.store(false, Ordering::SeqCst);
+        self.append_output("Stopping recovery...");
+    }
+    
+    fn clear_output(&self) {
+        self.output_box.set_text("");
+    }
+    
+    fn exit(&self) {
+        self.running.store(false, Ordering::SeqCst);
+        nwg::stop_thread_dispatch();
+    }
+}
+
+fn main() {
+    nwg::init().expect("Failed to init Native Windows GUI");
+    
+    let app = PDFRipGui::build_ui(Default::default()).expect("Failed to build UI");
+    
+    nwg::dispatch_thread_events();
 }
