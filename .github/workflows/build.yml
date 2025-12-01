@@ -38,7 +38,7 @@ jobs:
       run: cargo build --release --bin pdfrip
     
     - name: Build GUI tool
-      run: cargo build --release --bin pdfrip-gui
+      run: cargo build --release --package gui-interface --bin pdfrip-gui
     
     - name: Package distribution
       run: |
