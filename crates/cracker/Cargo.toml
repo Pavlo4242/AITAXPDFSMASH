@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "cracker"
 version.workspace = true
 edition.workspace = true
