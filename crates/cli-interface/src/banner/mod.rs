@@ -1,5 +1,5 @@
-﻿use colored::*;
-
+use colored::*;
+#[cfg(windows)]
 pub fn banner() {
     #[cfg(windows)]
     control::set_virtual_terminal(true).unwrap();
