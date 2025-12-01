@@ -3,7 +3,6 @@
 
 #![windows_subsystem = "windows"]
 use native_windows_gui as nwg;
-use native_windows_derive as nwd;
 use std::process::{Command, Stdio};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -40,6 +39,7 @@ pub struct PDFRipGui {
     output_notice: nwg::Notice,
     
     // State
+    running: Arc<AtomicBool>,// State
     running: Arc<AtomicBool>,
     output_buffer: Arc<Mutex<Vec<String>>>,
 }
@@ -179,22 +179,24 @@ impl PDFRipGui {
             .parent(&data.window)
             .build(&mut data.stop_button)?;
         
+// Buttons
         nwg::Button::builder()
             .text("Clear")
             .parent(&data.window)
             .build(&mut data.clear_button)?;
         
         // Bind events
-        let window_handles = data.window.handle;
-        let browse_handler = nwg::full_bind_event_handler(&data.window.handle, move |evt, _evt_data, handle| {
-            use nwg::Event;
+        // The faulty binding which caused E0505 and E0382 has been removed:
+        // let window_handles = data.window.handle;
+        // let browse_handler = nwg::full_bind_event_handler(&data.window.handle, move |evt, _evt_data, handle| {
+        //     use nwg::Event;
             
-            if handle == data.browse_button.handle {
-                if let Event::OnButtonClick = evt {
-                    Self::select_file(&data);
-                }
-            }
-        });
+        //     if handle == data.browse_button.handle {
+        //         if let Event::OnButtonClick = evt {
+        //             Self::select_file(&data);
+        //         }
+        //     }
+        // });
         
         Ok(data)
     }
@@ -202,7 +204,7 @@ impl PDFRipGui {
     fn select_file(&self) {
         if self.file_dialog.run(Some(&self.window)) {
             if let Ok(path) = self.file_dialog.get_selected_item() {
-                self.file_input.set_text(&path);
+                self.file_input.set_text(&path.to_string_lossy());
             }
         }
     }
@@ -211,7 +213,7 @@ impl PDFRipGui {
         let current = self.output_box.text();
         self.output_box.set_text(&format!("{}{}\r\n", current, text));
         let len = self.output_box.text().len();
-        self.output_box.set_selection(len..len);
+        self.output_box.set_selection(len as u32 .. len as u32);
     }
     
     fn start_recovery(&self) {
