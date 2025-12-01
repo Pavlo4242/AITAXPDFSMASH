@@ -34,7 +34,7 @@ pub struct PDFRipGui {
     
     // Resources
     file_dialog: nwg::FileDialog,
-title_font: nwg::Font,
+    title_font: nwg::Font,
     small_font: nwg::Font,
     output_notice: nwg::Notice,
     
