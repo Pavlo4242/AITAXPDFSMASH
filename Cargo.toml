@@ -16,7 +16,7 @@ authors = ["Ling <Ling@aitaxadvisers.com>", "แมตตี้", "AI-TAX ADVISE
 producer = { path = "crates/producer" }
 cracker = { path = "crates/cracker" }
 engine = { path = "crates/engine" }
-gui = { path = "crates/gui" }
+gui-interface = { path = "crates/gui" }
 cli-interface = { path = "crates/cli-interface" }
 anyhow = "1.0.72"
 clap = { version = "4.4.13", features = ["derive"] }
