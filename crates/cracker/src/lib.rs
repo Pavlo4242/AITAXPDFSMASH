@@ -1,4 +1,4 @@
-﻿uuse std::collections::hash_map::HashMap;
+use std::collections::hash_map::HashMap;
 use anyhow::anyhow;
 use pdf::PdfError;
 use pdf::any::AnySync;
