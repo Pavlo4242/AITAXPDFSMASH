@@ -14,4 +14,3 @@ pub fn banner() {
             .bold()
             .red()
     );
-}
