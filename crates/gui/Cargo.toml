@@ -1,7 +1,7 @@
 [package]
-name = "pdfrip"
-version = "2.0.1"
-edition = "2021"
+name = "gui-interface"
+version.workspace = true
+edition.workspace = true
 
 [dependencies]
 producer.workspace = true
