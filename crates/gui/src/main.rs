@@ -34,12 +34,11 @@ pub struct PDFRipGui {
     
     // Resources
     file_dialog: nwg::FileDialog,
-    title_font: nwg::Font,
+title_font: nwg::Font,
     small_font: nwg::Font,
     output_notice: nwg::Notice,
     
     // State
-    running: Arc<AtomicBool>,// State
     running: Arc<AtomicBool>,
     output_buffer: Arc<Mutex<Vec<String>>>,
 }
@@ -374,7 +373,7 @@ impl PDFRipGui {
         self.output_box.set_text("");
     }
     
-    fn exit(&self) {
+fn exit(&self) {
         self.running.store(false, Ordering::SeqCst);
         nwg::stop_thread_dispatch();
     }
@@ -383,7 +382,7 @@ impl PDFRipGui {
 fn main() {
     nwg::init().expect("Failed to init Native Windows GUI");
     
-    let app = PDFRipGui::build_ui(Default::default()).expect("Failed to build UI");
+    let _app = PDFRipGui::build_ui(Default::default()).expect("Failed to build UI");
     
     nwg::dispatch_thread_events();
 }
